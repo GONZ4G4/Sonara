@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pocket Bard — Protótipo pessoal</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <h1>Sonara Studio<span class="tag">protótipo</span></h1>
+    <div class="top-controls">
+      <label class="profile-control">
+        <span>Perfil</span>
+        <select id="profileSelect" class="picker"></select>
+      </label>
+      <button id="createProfile">+ Perfil</button>
+      <label class="master">
+        <span>Master</span>
+        <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.8" />
+        <output id="masterVolOut">80%</output>
+      </label>
+      <button id="panicBtn" class="danger" title="Parar tudo">⏹ Parar tudo</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel wide">
+      <h2>Música</h2>
+
+      <div class="environment-layout music-layout">
+        <div class="environment-main">
+          <div class="decks">
+            <div class="deck" data-deck="musicA">
+              <h3>Deck A</h3>
+              <div class="deck-select-wrap">
+                <select id="musicASelect" class="picker"></select>
+                <span id="musicATitle" class="deck-current-title marquee" aria-hidden="true"></span>
+              </div>
+              <div class="deck-waveform" id="musicAWaveform" role="button" tabindex="0" aria-label="Waveform do Deck A">
+                <canvas aria-hidden="true"></canvas>
+              </div>
+              <div class="deck-transport">
+                <span class="deck-time" id="musicATime">00:00 / 00:00</span>
+                <button id="musicAToggle" class="play deck-play" type="button" title="Reproduzir">▶ Reproduzir</button>
+                <button id="musicAStop" class="ghost" type="button" title="Parar faixa">■ Parar</button>
+                <button id="musicARestart" class="ghost" type="button" title="Reiniciar faixa">↺ Reiniciar</button>
+                <label class="deck-repeat"><input id="musicARepeat" type="checkbox" checked /> Repetir</label>
+              </div>
+            </div>
+            <div class="deck" data-deck="musicB">
+              <h3>Deck B</h3>
+              <div class="deck-select-wrap">
+                <select id="musicBSelect" class="picker"></select>
+                <span id="musicBTitle" class="deck-current-title marquee" aria-hidden="true"></span>
+              </div>
+              <div class="deck-waveform" id="musicBWaveform" role="button" tabindex="0" aria-label="Waveform do Deck B">
+                <canvas aria-hidden="true"></canvas>
+              </div>
+              <div class="deck-transport">
+                <span class="deck-time" id="musicBTime">00:00 / 00:00</span>
+                <button id="musicBToggle" class="play deck-play" type="button" title="Reproduzir">▶ Reproduzir</button>
+                <button id="musicBStop" class="ghost" type="button" title="Parar faixa">■ Parar</button>
+                <button id="musicBRestart" class="ghost" type="button" title="Reiniciar faixa">↺ Reiniciar</button>
+                <label class="deck-repeat"><input id="musicBRepeat" type="checkbox" checked /> Repetir</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="crossfade">
+            <label>
+              <span>A</span>
+              <input type="range" id="crossfade" min="0" max="1" step="0.01" value="0" />
+              <span>B</span>
+            </label>
+            <button id="fadeToA" class="ghost">← Fade A</button>
+            <button id="fadeToB" class="ghost">Fade B →</button>
+          </div>
+        </div>
+
+        <label class="vertical-volume">
+          <span>Música</span>
+          <input type="range" id="musicVol" class="vol" min="0" max="1" step="0.01" value="0.7" />
+          <output id="musicVolOut">70%</output>
+        </label>
+      </div>
+
+    </section>
+
+    <section class="panel">
+      <h2>Ambientação</h2>
+      <div class="environment-layout">
+        <div id="ambienceGrid" class="sfx-grid">
+          <p class="empty">Nenhuma ambientação neste perfil.</p>
+        </div>
+        <label class="vertical-volume">
+          <span>Ambientação</span>
+          <input type="range" id="ambienceVol" class="vol" min="0" max="1" step="0.01" value="0.6" />
+          <output id="ambienceVolOut">60%</output>
+        </label>
+      </div>
+    </section>
+
+    <section class="panel wide">
+      <h2>Efeitos (one-shot)</h2>
+      <div class="environment-layout">
+        <div id="sfxGrid" class="sfx-grid">
+          <p class="empty">Nenhum efeito carregado ainda.</p>
+        </div>
+        <label class="vertical-volume">
+          <span>Efeitos</span>
+          <input type="range" id="sfxVol" class="vol" min="0" max="1" step="0.01" value="0.8" />
+          <output id="sfxVolOut">80%</output>
+        </label>
+      </div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="panel full">
+      <h2>Biblioteca</h2>
+      <div class="row wrap">
+        <button data-add="audio">+ Carregar áudio</button>
+      </div>
+      <input type="file" id="fileInput" accept="audio/*" multiple hidden />
+      <div id="libraryList" class="library"></div>
+    </section>
+  </main>
+
+  <script src="app.js?v=12"></script>
+</body>
+</html>
