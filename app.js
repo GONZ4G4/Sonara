@@ -1217,26 +1217,23 @@ async function importFiles(files, handles = [], destination = 'unassigned') {
   }
   for (const [index, file] of files.entries()) {
     const fingerprint = await audioFingerprint(file);
-    if (destination !== 'unassigned') {
-      try {
-        if (await hasAudioInProfile(destination, fingerprint)) {
-          alert('Este áudio já está neste ambiente do perfil atual.');
+    let alias = '';
+    try {
+      if (await hasAudioInProfile(destination, fingerprint)) {
+        if (!confirm(`Este áudio já foi carregado no perfil atual. Deseja adicioná-lo novamente com outro nome?`)) {
           continue;
         }
-      } catch (error) {
-        alert(error.message);
-        continue;
+        const proposedAlias = prompt('Digite o novo nome do áudio:', file.name.replace(/\.[^.]+$/, ''));
+        if (proposedAlias === null) continue;
+        alias = proposedAlias.trim();
+        if (!aliasIsAvailable(alias)) {
+          alert('Este alias já está sendo usado por outro áudio. O arquivo não foi adicionado.');
+          continue;
+        }
       }
-    }
-    let alias = '';
-    if (confirm(`Deseja adicionar "${file.name}" com um nome diferente?`)) {
-      const proposedAlias = prompt('Digite o novo nome do áudio:', file.name.replace(/\.[^.]+$/, ''));
-      if (proposedAlias === null) continue;
-      alias = proposedAlias.trim();
-      if (!aliasIsAvailable(alias)) {
-        alert('Este alias já está sendo usado por outro áudio. O arquivo não foi adicionado.');
-        continue;
-      }
+    } catch (error) {
+      alert(error.message);
+      continue;
     }
     const record = {
       id: uid(), name: file.name, alias, type: file.type, category: destination, fingerprint,
