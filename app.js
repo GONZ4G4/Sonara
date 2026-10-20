@@ -33,6 +33,8 @@ let activeProfile = null;
 let crossfade = 0;
 let crossfadeFrame = 0;
 let pendingCategory = 'unassigned';
+let dialogResolver = null;
+let dialogValue = null;
 const els = {
   masterVol: $('#masterVol'), masterVolOut: $('#masterVolOut'),
   profileSelect: $('#profileSelect'), createProfile: $('#createProfile'),
@@ -46,12 +48,96 @@ const els = {
   crossfade: $('#crossfade'), musicVol: $('#musicVol'), musicVolOut: $('#musicVolOut'),
   sfxVol: $('#sfxVol'), sfxVolOut: $('#sfxVolOut'), sfxGrid: $('#sfxGrid'),
   libraryList: $('#libraryList'), fileInput: $('#fileInput'), panicBtn: $('#panicBtn'),
+  addExternalLink: $('#addExternalLink'),
+  dialog: $('#appDialog'), dialogForm: $('#dialogForm'), dialogTitle: $('#dialogTitle'),
+  dialogMessage: $('#dialogMessage'), dialogInputLabel: $('#dialogInputLabel'),
+  dialogInputCaption: $('#dialogInputCaption'), dialogInput: $('#dialogInput'),
+  dialogTextareaLabel: $('#dialogTextareaLabel'), dialogTextareaCaption: $('#dialogTextareaCaption'),
+  dialogTextarea: $('#dialogTextarea'), dialogProgress: $('#dialogProgress'),
+  dialogProgressLabel: $('#dialogProgressLabel'), dialogActions: $('#dialogActions'),
+  dialogCancel: $('#dialogCancel'), dialogConfirm: $('#dialogConfirm'),
   fadeToA: $('#fadeToA'), fadeToB: $('#fadeToB'),
 };
 const channels = {
   musicA: { el: audio.musicA, select: els.musicASelect, waveform: els.musicAWaveform, time: els.musicATime, toggle: els.musicAToggle, stop: els.musicAStop, restart: els.musicARestart, repeat: els.musicARepeat, peaks: null, overlap: null, dragging: false, suppressRepeat: false },
   musicB: { el: audio.musicB, select: els.musicBSelect, waveform: els.musicBWaveform, time: els.musicBTime, toggle: els.musicBToggle, stop: els.musicBStop, restart: els.musicBRestart, repeat: els.musicBRepeat, peaks: null, overlap: null, dragging: false, suppressRepeat: false },
 };
+
+function showDialog({
+  title,
+  message = '',
+  inputLabel,
+  inputValue = '',
+  textareaLabel,
+  textareaValue = '',
+  confirmLabel = 'OK',
+  cancelLabel = 'Cancelar',
+  confirmOnly = false,
+}) {
+  if (els.dialog.open) els.dialog.close('cancel');
+  els.dialogTitle.textContent = title;
+  els.dialogMessage.textContent = message;
+  els.dialogInputLabel.hidden = !inputLabel;
+  els.dialogInputCaption.textContent = inputLabel || '';
+  els.dialogInput.value = inputValue;
+  els.dialogTextareaLabel.hidden = !textareaLabel;
+  els.dialogTextareaCaption.textContent = textareaLabel || '';
+  els.dialogTextarea.value = textareaValue;
+  els.dialogProgress.hidden = true;
+  els.dialogActions.hidden = false;
+  els.dialogCancel.hidden = confirmOnly;
+  els.dialogCancel.textContent = cancelLabel;
+  els.dialogConfirm.textContent = confirmLabel;
+  els.dialogInput.required = false;
+  els.dialogTextarea.required = false;
+  els.dialog.showModal();
+  if (inputLabel) els.dialogInput.focus();
+  else if (textareaLabel) els.dialogTextarea.focus();
+  else els.dialogConfirm.focus();
+
+  return new Promise((resolve) => {
+    dialogResolver = resolve;
+  });
+}
+
+function showMessage(message, title = 'Aviso') {
+  return showDialog({ title, message, confirmOnly: true });
+}
+
+function showProgress(message) {
+  if (els.dialog.open) els.dialog.close('cancel');
+  els.dialogTitle.textContent = 'Carregando link externo';
+  els.dialogMessage.textContent = 'Somente os links e metadados serão indexados. Nenhum áudio ou vídeo será baixado.';
+  els.dialogInputLabel.hidden = true;
+  els.dialogTextareaLabel.hidden = true;
+  els.dialogProgressLabel.textContent = message;
+  els.dialogProgress.hidden = false;
+  els.dialogActions.hidden = true;
+  els.dialog.showModal();
+}
+
+function hideDialog() {
+  if (els.dialog.open) els.dialog.close('cancel');
+}
+
+els.dialogForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  dialogValue = els.dialogTextareaLabel.hidden
+    ? (els.dialogInputLabel.hidden ? true : els.dialogInput.value)
+    : els.dialogTextarea.value;
+  els.dialog.close('confirm');
+});
+els.dialogCancel.addEventListener('click', () => els.dialog.close('cancel'));
+els.dialog.addEventListener('close', () => {
+  const resolve = dialogResolver;
+  dialogResolver = null;
+  resolve?.(els.dialog.returnValue === 'confirm' ? dialogValue : null);
+  dialogValue = null;
+});
+els.dialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  els.dialog.close('cancel');
+});
 
 function openDB() {
   return new Promise((resolve) => {
@@ -814,7 +900,7 @@ function renderLibrary() {
   if (!items.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
-    empty.textContent = 'Nenhum áudio neste perfil.';
+    empty.textContent = 'Nenhum áudio ou link externo neste perfil.';
     els.libraryList.appendChild(empty);
     return;
   }
@@ -830,36 +916,47 @@ function renderLibrary() {
     name.title = item.originalName || item.name;
     const category = document.createElement('span');
     category.className = 'cat';
-    category.textContent = categoryNames[categoryKey];
+    category.textContent = item.external ? 'link externo' : categoryNames[categoryKey];
     left.append(name, category);
     const actions = document.createElement('div');
     actions.className = 'lib-actions';
-    const destination = document.createElement('select');
-    destination.className = 'picker destination-picker';
-    destination.setAttribute('aria-label', `Ambiente de ${item.name}`);
-    for (const [value, label] of Object.entries({
-      unassigned: 'Biblioteca',
-      music: 'Música',
-      ambience: 'Ambientação',
-      sfx: 'Efeito',
-    })) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      destination.appendChild(option);
+    if (item.external) {
+      const openLink = document.createElement('a');
+      openLink.className = 'external-link-open';
+      openLink.href = item.externalUrl;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      openLink.textContent = `Abrir ${item.provider}`;
+      actions.appendChild(openLink);
+    } else {
+      const destination = document.createElement('select');
+      destination.className = 'picker destination-picker';
+      destination.setAttribute('aria-label', `Ambiente de ${item.name}`);
+      for (const [value, label] of Object.entries({
+        unassigned: 'Biblioteca',
+        music: 'Música',
+        ambience: 'Ambientação',
+        sfx: 'Efeito',
+      })) {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        destination.appendChild(option);
+      }
+      destination.value = categoryKey;
+      destination.addEventListener('change', () => moveAudio(item, destination.value, destination));
+      actions.appendChild(destination);
     }
-    destination.value = categoryKey;
-    destination.addEventListener('change', () => moveAudio(item, destination.value, destination));
     const rename = document.createElement('button');
     rename.className = 'ghost';
     rename.textContent = 'Renomear';
-    rename.title = 'Definir um alias sem alterar o arquivo';
-    rename.addEventListener('click', () => renameFile(item, row, name));
+    rename.title = item.external ? 'Renomear referência sem alterar o link' : 'Definir um alias sem alterar o arquivo';
+    rename.addEventListener('click', () => renameFile(item));
     const remove = document.createElement('button');
     remove.className = 'danger ghost';
     remove.textContent = 'Remover';
     remove.addEventListener('click', () => removeFile(item.id, categoryKey));
-    actions.append(destination, rename, remove);
+    actions.append(rename, remove);
     row.append(left, actions);
     els.libraryList.appendChild(row);
   }
@@ -977,7 +1074,9 @@ function stopAll() {
 async function unloadProfileAudio() {
   await stopAll();
   for (const category of Object.keys(library)) {
-    for (const item of library[category]) URL.revokeObjectURL(item.url);
+    for (const item of library[category]) {
+      if (!item.external) URL.revokeObjectURL(item.url);
+    }
     library[category].length = 0;
   }
   itemPlayers.clear();
@@ -997,6 +1096,22 @@ async function loadProfileAudio(profile) {
   const fileIds = new Set(profile.fileIds || []);
   for (const record of records) {
     if (record.profileId !== profile.id || !fileIds.has(record.id)) continue;
+    if (record.kind === 'externalLink') {
+      if (!library[record.category]) continue;
+      const name = record.alias || record.name;
+      library[record.category].push({
+        id: record.id,
+        name,
+        originalName: record.name,
+        alias: record.alias || '',
+        category: record.category,
+        external: true,
+        externalUrl: record.externalUrl,
+        provider: record.provider,
+      });
+      if (!profile.fileIds.includes(record.id)) profile.fileIds.push(record.id);
+      continue;
+    }
     let file = record.blob;
     if (record.fileHandle?.getFile) {
       try {
@@ -1059,7 +1174,7 @@ async function removeFile(id, category) {
   const items = library[category];
   const index = items.findIndex((item) => item.id === id);
   if (index >= 0) {
-    URL.revokeObjectURL(items[index].url);
+    if (!items[index].external) URL.revokeObjectURL(items[index].url);
     items.splice(index, 1);
   }
   activeProfile.fileIds = activeProfile.fileIds.filter((fileId) => fileId !== id);
@@ -1079,6 +1194,11 @@ async function audioFingerprint(file) {
 }
 
 async function moveAudio(item, destination, select) {
+  if (item.external) {
+    await showMessage('Links externos ficam na biblioteca e não podem ser usados como arquivos de áudio locais.');
+    if (select) select.value = item.category;
+    return;
+  }
   if (!LIBRARY_CATEGORIES.includes(destination) || !library[item.category] || !library[destination]) {
     console.error('Não foi possível mover o áudio: categoria inválida.', { source: item.category, destination });
     if (select) select.value = item.category;
@@ -1088,7 +1208,7 @@ async function moveAudio(item, destination, select) {
   if (destination !== 'unassigned') {
     const record = storedRecords.get(item.id);
     if (!record?.fingerprint && !record?.blob) {
-      alert('Não foi possível verificar se este áudio já está no ambiente.');
+      await showMessage('Não foi possível verificar se este áudio já está no ambiente.');
       if (select) select.value = item.category;
       return;
     }
@@ -1102,7 +1222,7 @@ async function moveAudio(item, destination, select) {
       if (!activeProfile.fileIds.includes(other.id)) continue;
       const otherRecord = storedRecords.get(other.id);
       if (!otherRecord?.fingerprint && !otherRecord?.blob) {
-        alert('Não foi possível verificar se este áudio já está no ambiente.');
+        await showMessage('Não foi possível verificar se este áudio já está no ambiente.');
         if (select) select.value = item.category;
         return;
       }
@@ -1112,7 +1232,7 @@ async function moveAudio(item, destination, select) {
         await dbPut(otherRecord);
       }
       if (fingerprint === otherFingerprint) {
-        alert('Este áudio já está neste ambiente.');
+        await showMessage('Este áudio já está neste ambiente.');
         if (select) select.value = item.category;
         return;
       }
@@ -1148,48 +1268,36 @@ async function moveAudio(item, destination, select) {
   saveState();
 }
 
-function renameFile(item, row, nameElement) {
-  const editor = document.createElement('input');
-  editor.className = 'alias-input';
-  editor.type = 'text';
-  editor.value = item.alias || '';
-  editor.placeholder = item.originalName || item.name;
-  editor.setAttribute('aria-label', `Alias de ${item.originalName || item.name}`);
-  nameElement.replaceWith(editor);
-
-  const actions = row.querySelector('.lib-actions');
-  const save = document.createElement('button');
-  save.textContent = 'salvar';
-  const cancel = document.createElement('button');
-  cancel.className = 'ghost';
-  cancel.textContent = 'cancelar';
-  actions.replaceChildren(save, cancel);
-
-  const cancelEdit = () => refreshUI();
-  const saveEdit = async () => {
-    const alias = editor.value.trim();
-    if (!aliasIsAvailable(alias, item)) {
-      alert('Este alias já está sendo usado por outro áudio.');
-      editor.focus();
+async function renameFile(item) {
+  const alias = await showDialog({
+    title: 'Renomear item da biblioteca',
+    message: 'O nome original do arquivo ou o link não será alterado.',
+    inputLabel: 'Novo nome',
+    inputValue: item.alias || '',
+    confirmLabel: 'Salvar',
+  });
+  if (alias === null) return;
+  if (!aliasIsAvailable(alias, item)) {
+    await showMessage('Este nome já está sendo usado por outro item.');
+    return;
+  }
+  const previousAlias = item.alias;
+  const previousName = item.name;
+  item.alias = alias.trim();
+  item.name = item.alias || item.originalName || item.name;
+  const record = storedRecords.get(item.id);
+  if (record) {
+    record.alias = item.alias;
+    if (!await dbPut(record)) {
+      item.alias = previousAlias;
+      item.name = previousName;
+      record.alias = previousAlias;
+      await showMessage('Não foi possível salvar o novo nome no armazenamento local.');
       return;
     }
-    item.alias = alias;
-    item.name = item.alias || item.originalName || item.name;
-    const record = storedRecords.get(item.id);
-    if (record) {
-      record.alias = item.alias;
-      await dbPut(record);
-    }
-    refreshUI();
-    saveState();
-  };
-  save.addEventListener('click', saveEdit);
-  cancel.addEventListener('click', cancelEdit);
-  editor.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') saveEdit();
-    if (event.key === 'Escape') cancelEdit();
-  });
-  editor.focus();
+  }
+  refreshUI();
+  saveState();
 }
 
 async function hasAudioInProfile(category, fingerprint) {
@@ -1201,6 +1309,7 @@ async function hasAudioInProfile(category, fingerprint) {
     if (!profileFileIds.has(item.id)) continue;
     const record = storedRecords.get(item.id);
     if (!record || record.profileId !== activeProfile.id) continue;
+    if (record.kind === 'externalLink') continue;
     if (!record?.fingerprint && !record?.blob) {
       throw new Error(`Não foi possível validar se "${item.name}" já existe neste perfil.`);
     }
@@ -1220,19 +1329,31 @@ async function importFiles(files, handles = [], destination = 'unassigned') {
     let alias = '';
     try {
       if (await hasAudioInProfile(destination, fingerprint)) {
-        if (!confirm(`Este áudio já foi carregado no perfil atual. Deseja adicioná-lo novamente com outro nome?`)) {
+        if (!await showDialog({
+          title: 'Áudio já existe',
+          message: 'Este áudio já foi carregado no perfil atual. Deseja adicioná-lo novamente com outro nome?',
+          confirmLabel: 'Continuar',
+        })) {
           continue;
         }
-        const proposedAlias = prompt('Digite o novo nome do áudio:', file.name.replace(/\.[^.]+$/, ''));
+        const proposedAlias = await showDialog({
+          title: 'Nomear cópia',
+          message: 'Informe outro nome para este áudio.',
+          inputLabel: 'Novo nome',
+          inputValue: file.name.replace(/\.[^.]+$/, ''),
+          confirmLabel: 'Usar nome',
+        });
         if (proposedAlias === null) continue;
         alias = proposedAlias.trim();
-        if (!aliasIsAvailable(alias)) {
-          alert('Este alias já está sendo usado por outro áudio. O arquivo não foi adicionado.');
+        if (!alias || !aliasIsAvailable(alias)) {
+          await showMessage(alias
+            ? 'Este nome já está sendo usado por outro item. O arquivo não foi adicionado.'
+            : 'Informe um nome para identificar esta cópia. O arquivo não foi adicionado.');
           continue;
         }
       }
     } catch (error) {
-      alert(error.message);
+      await showMessage(error.message);
       continue;
     }
     const record = {
@@ -1243,7 +1364,13 @@ async function importFiles(files, handles = [], destination = 'unassigned') {
     const persisted = await dbPut(record);
     if (!persisted && record.fileHandle) {
       delete record.fileHandle;
-      await dbPut(record);
+      if (!await dbPut(record)) {
+        await showMessage(`Não foi possível salvar "${file.name}" no armazenamento local.`);
+        continue;
+      }
+    } else if (!persisted) {
+      await showMessage(`Não foi possível salvar "${file.name}" no armazenamento local.`);
+      continue;
     }
     storedRecords.set(record.id, record);
     activeProfile.fileIds.push(record.id);
@@ -1260,6 +1387,99 @@ async function importFiles(files, handles = [], destination = 'unassigned') {
   }
   refreshUI();
   saveState();
+}
+
+async function requestExternalLinks(url) {
+  const response = await fetch('/api/external-links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error('O servidor retornou uma resposta inválida ao consultar o link.');
+  }
+  if (!response.ok) throw new Error(result.error || 'Não foi possível consultar este link.');
+  return result;
+}
+
+async function addExternalLinks() {
+  const input = await showDialog({
+    title: 'Adicionar link externo',
+    message: 'Cole um link de vídeo do YouTube, música do Spotify ou playlist. Cada faixa da playlist será indexada como um item separado. Só serão salvos links e metadados; nenhum arquivo de mídia será baixado.',
+    textareaLabel: 'Um link por linha',
+    confirmLabel: 'Indexar links',
+  });
+  if (input === null) return;
+  const urls = input.split(/\r?\n/).map((url) => url.trim()).filter(Boolean);
+  if (!urls.length) {
+    await showMessage('Cole ao menos um link para continuar.');
+    return;
+  }
+
+  let indexed = 0;
+  let duplicates = 0;
+  let truncated = false;
+  let failure = '';
+  showProgress(`Consultando link 1 de ${urls.length}...`);
+  try {
+    for (const [index, url] of urls.entries()) {
+      els.dialogProgressLabel.textContent = `Consultando link ${index + 1} de ${urls.length}...`;
+      const result = await requestExternalLinks(url);
+      truncated ||= !!result.truncated;
+      for (const entry of result.items || []) {
+        if (allLibraryItems().some((item) => item.external && item.externalUrl === entry.url)) {
+          duplicates += 1;
+          continue;
+        }
+        const record = {
+          id: uid(),
+          kind: 'externalLink',
+          name: entry.title || entry.url,
+          alias: '',
+          category: 'unassigned',
+          profileId: activeProfile.id,
+          provider: entry.provider,
+          externalUrl: entry.url,
+        };
+        if (!await dbPut(record)) {
+          throw new Error('Não foi possível salvar os links no armazenamento local do navegador.');
+        }
+        storedRecords.set(record.id, record);
+        activeProfile.fileIds.push(record.id);
+        library.unassigned.push({
+          id: record.id,
+          name: record.name,
+          originalName: record.name,
+          alias: '',
+          category: 'unassigned',
+          external: true,
+          externalUrl: entry.url,
+          provider: entry.provider,
+        });
+        indexed += 1;
+      }
+    }
+  } catch (error) {
+    failure = error.message || 'Falha ao consultar links externos.';
+  } finally {
+    hideDialog();
+    refreshUI();
+    saveState();
+  }
+
+  if (failure) {
+    await showMessage(`${failure}${indexed ? `\n${indexed} item(ns) já foram indexados.` : ''}`, 'Não foi possível concluir');
+    return;
+  }
+  const notes = [
+    `${indexed} item(ns) indexado(s) na biblioteca.`,
+    duplicates ? `${duplicates} link(s) duplicado(s) foram ignorados.` : '',
+    truncated ? 'A lista foi limitada aos primeiros 500 itens pela API da plataforma.' : '',
+  ].filter(Boolean);
+  await showMessage(notes.join('\n'), 'Links externos');
 }
 
 async function chooseAudioFiles(destination = 'unassigned') {
@@ -1279,6 +1499,7 @@ async function chooseAudioFiles(destination = 'unassigned') {
 document.querySelectorAll('[data-add]').forEach((button) => {
   button.addEventListener('click', () => chooseAudioFiles());
 });
+els.addExternalLink.addEventListener('click', addExternalLinks);
 els.fileInput.addEventListener('change', async () => {
   const files = [...els.fileInput.files];
   els.fileInput.value = '';
@@ -1287,7 +1508,12 @@ els.fileInput.addEventListener('change', async () => {
 
 els.profileSelect.addEventListener('change', () => switchProfile(els.profileSelect.value));
 els.createProfile.addEventListener('click', async () => {
-  const name = prompt('Nome do perfil:')?.trim();
+  const requestedName = await showDialog({
+    title: 'Criar perfil',
+    inputLabel: 'Nome do perfil',
+    confirmLabel: 'Criar',
+  });
+  const name = requestedName?.trim();
   if (!name) return;
   saveState();
   const profile = { id: uid(), name, fileIds: [], state: {} };

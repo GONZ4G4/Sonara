@@ -1,0 +1,13 @@
+{
+  "name": "pocket-bard-library",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Biblioteca local com indexação de links externos",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.6"
+  }
+}

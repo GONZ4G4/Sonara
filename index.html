@@ -121,12 +121,36 @@
       <h2>Biblioteca</h2>
       <div class="row wrap">
         <button data-add="audio">+ Carregar áudio</button>
+        <button id="addExternalLink" type="button">+ Link externo</button>
       </div>
       <input type="file" id="fileInput" accept="audio/*" multiple hidden />
       <div id="libraryList" class="library"></div>
     </section>
   </main>
 
-  <script src="app.js?v=12"></script>
+  <dialog id="appDialog" class="app-dialog" aria-labelledby="dialogTitle">
+    <form id="dialogForm" class="dialog-form">
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogMessage" class="dialog-message"></p>
+      <label id="dialogInputLabel" class="dialog-field" hidden>
+        <span id="dialogInputCaption"></span>
+        <input id="dialogInput" type="text" />
+      </label>
+      <label id="dialogTextareaLabel" class="dialog-field" hidden>
+        <span id="dialogTextareaCaption"></span>
+        <textarea id="dialogTextarea" rows="5"></textarea>
+      </label>
+      <div id="dialogProgress" class="dialog-progress" hidden>
+        <span class="dialog-spinner" aria-hidden="true"></span>
+        <span id="dialogProgressLabel"></span>
+      </div>
+      <div id="dialogActions" class="dialog-actions">
+        <button id="dialogCancel" class="ghost" type="button">Cancelar</button>
+        <button id="dialogConfirm" class="play" type="submit">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js?v=13"></script>
 </body>
 </html>
